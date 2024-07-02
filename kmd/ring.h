@@ -10,7 +10,7 @@ struct vely_cmd {
 
 struct ring {
     struct vely_cmd slots[RING_SIZE];
-    volatile uint32_t head, tail;
+    uint32_t head, tail;
 };
 
 int ring_push(struct ring *r, const struct vely_cmd *c);
