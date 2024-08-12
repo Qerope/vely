@@ -54,6 +54,24 @@ int gpuva_free(uint64_t addr, uint64_t size)
 {
     struct range **pp = &free_list;
     while (*pp && (*pp)->start < addr) pp = &(*pp)->next;
+    struct range *prev = (pp == &free_list) ? NULL : (struct range *)((char *)pp - offsetof(struct range, next));
+    struct range *next = *pp;
+    if (prev && prev->start + prev->size > addr) return -1;       /* overlaps a free range */
+    if (next && addr + size > next->start) return -1;
+    if (prev && prev->start + prev->size == addr) {
+        prev->size += size;
+        if (next && prev->start + prev->size == next->start) {
+            prev->size += next->size;
+            prev->next = next->next;
+            node_put(next);
+        }
+        return 0;
+    }
+    if (next && addr + size == next->start) {
+        next->start = addr;
+        next->size += size;
+        return 0;
+    }
     struct range *r = node_get();
     if (!r) return -1;
     r->start = addr;
