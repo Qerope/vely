@@ -36,15 +36,33 @@ void gpuva_init(uint64_t base, uint64_t size)
     free_list->next = NULL;
 }
 
-int gpuva_alloc(uint64_t size, uint64_t *out)
+/* align must be a power of two. The padding in front of an aligned address stays free. */
+int gpuva_alloc(uint64_t size, uint64_t align, uint64_t *out)
 {
     for (struct range **pp = &free_list; *pp; pp = &(*pp)->next) {
         struct range *r = *pp;
-        if (r->size < size) continue;
-        *out = r->start;
-        r->start += size;
-        r->size -= size;
-        if (!r->size) { *pp = r->next; node_put(r); }
+        uint64_t start = (r->start + align - 1) & ~(align - 1);
+        if (start < r->start || start - r->start > r->size || r->size - (start - r->start) < size) continue;
+        uint64_t pad = start - r->start;
+        uint64_t tail = r->size - pad - size;
+        if (pad && tail) {
+            struct range *t = node_get();
+            if (!t) return -1;
+            t->start = start + size;
+            t->size = tail;
+            t->next = r->next;
+            r->next = t;
+            r->size = pad;
+        } else if (pad) {
+            r->size = pad;
+        } else if (tail) {
+            r->start = start + size;
+            r->size = tail;
+        } else {
+            *pp = r->next;
+            node_put(r);
+        }
+        *out = start;
         return 0;
     }
     return -1;
