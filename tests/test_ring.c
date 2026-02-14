@@ -21,15 +21,23 @@ int main(void)
 {
     struct vely_cmd c;
     assert(ring_pop(&r, &c) == -1);
-    for (int i = 0; i < RING_SIZE - 1; i++) {
+    for (int i = 0; i < RING_SIZE; i++) {
         c.op = i;
         assert(ring_push(&r, &c) == 0);
     }
-    assert(ring_push(&r, &c) == -1);
-    for (uint32_t i = 0; i < RING_SIZE - 1; i++) {
+    assert(ring_push(&r, &c) == -1);   /* all RING_SIZE slots usable */
+    for (uint32_t i = 0; i < RING_SIZE; i++) {
         assert(ring_pop(&r, &c) == 0);
         assert(c.op == i);
     }
+    /* force the counters across the 32 bit wrap */
+    r.head = r.tail = 0xfffffff0u;
+    for (int i = 0; i < 100; i++) {
+        c.op = i;
+        assert(ring_push(&r, &c) == 0);
+        assert(ring_pop(&r, &c) == 0 && c.op == (uint32_t)i);
+    }
+    r.head = r.tail = 0;
 
     /* two threads: every command arrives once, in order */
     pthread_t t;
